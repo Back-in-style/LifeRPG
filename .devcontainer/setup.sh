@@ -32,6 +32,10 @@ flutter config --no-analytics --android-sdk "$ANDROID_HOME"
 yes | flutter doctor --android-licenses >/dev/null || true
 flutter precache --android
 
+# Flutter 프로젝트는 liferpg_flutter/ 에 있다 (레포 루트 아님)
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT/liferpg_flutter"
+
 # 플랫폼 폴더가 아직 없으면 생성 (lib/, pubspec.yaml은 덮어쓰지 않음)
 if [ ! -d android ]; then
   flutter create --project-name liferpg --org com.liferpg --platforms android .
@@ -39,9 +43,9 @@ if [ ! -d android ]; then
 fi
 
 # 한글 폰트
-if [ ! -f assets/fonts/NanumGothic.ttf ] && [ -f legacy/apk/assets/private/NanumGothic.ttf ]; then
+if [ ! -f assets/fonts/NanumGothic.ttf ] && [ -f ../assets/private/NanumGothic.ttf ]; then
   mkdir -p assets/fonts
-  cp legacy/apk/assets/private/NanumGothic.ttf assets/fonts/
+  cp ../assets/private/NanumGothic.ttf assets/fonts/
 fi
 
 flutter pub get

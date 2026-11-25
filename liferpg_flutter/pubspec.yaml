@@ -23,13 +23,14 @@ dependencies:
   path: ^1.9.0
 
   # 모델
-  freezed_annotation: ^2.4.1
-  json_annotation: ^4.9.0
 
   # UI / 기능
   fl_chart: ^0.68.0
   flutter_local_notifications: ^17.2.1
   intl: any # flutter_localizations가 버전을 고정함
+  timezone: ^0.9.4 # 알림 예약 (flutter_local_notifications)
+  material_ui: ^1.11.1
+  cupertino_ui: ^1.1.7
 
 dev_dependencies:
   flutter_test:
@@ -37,8 +38,6 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   build_runner: ^2.4.11
   drift_dev: ^2.18.0
-  freezed: ^2.5.2
-  json_serializable: ^6.8.0
 
 flutter:
   uses-material-design: true

@@ -1,0 +1,7 @@
+{
+  "events": [
+    { "ts": "2026-02-25 20:00:00", "type": "breakthrough", "message": "돌파 성공: 힘 상한 30.0 → 50.0", "meta": {} },
+    { "ts": "2026-02-25 20:00:00", "type": "quest", "message": "퀘스트 완료: 벤치 80kg", "meta": {} },
+    { "ts": "2026-02-25 20:00:00", "type": "achievement", "message": "업적 달성: 🔓 한계 돌파 — 첫 돌파!", "meta": {} }
+  ]
+}

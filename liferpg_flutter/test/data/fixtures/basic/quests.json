@@ -1,0 +1,25 @@
+{
+  "quests": [
+    {
+      "id": 1, "category": "Gym", "type": "Daily", "title": "푸시업 50개", "xp": 30,
+      "rewards": { "힘": 0.0, "민첩": 0.0, "정신력": 0.0, "지구력": 0.0 },
+      "difficulty": "Normal", "deadline": null, "progress": 0, "status": "DONE",
+      "created_at": "2026-02-27 08:00:00", "completed_at": "2026-03-01 07:30:00",
+      "desc": "", "base_xp": 30
+    },
+    {
+      "id": 2, "category": "Swim", "type": "Side", "title": "수영 1km", "xp": 45,
+      "rewards": { "힘": 0.0, "민첩": 0.0, "정신력": 0.2, "지구력": 0.5 },
+      "difficulty": "Hard", "deadline": "2026-03-10", "progress": 40, "status": "ACTIVE",
+      "created_at": "2026-02-28 10:00:00", "completed_at": null,
+      "desc": "자유형", "base_xp": 30
+    },
+    {
+      "id": 4, "category": "Other", "type": "Main", "title": "책 한 권", "xp": 21,
+      "rewards": {}, "difficulty": "Easy", "deadline": "", "progress": 0,
+      "status": "ACTIVE", "created_at": "2026-02-28 11:00:00", "completed_at": null,
+      "desc": ""
+    }
+  ],
+  "next_id": 6
+}

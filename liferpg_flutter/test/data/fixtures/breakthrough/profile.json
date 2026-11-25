@@ -1,0 +1,12 @@
+{
+  "app": "LifeRPG",
+  "trees": {
+    "physical": { "xp": 1280, "level": 5, "xp_in_level": 0, "xp_next": 520 },
+    "mind": { "xp": 0, "level": 3, "xp_in_level": 0, "xp_next": 200 }
+  },
+  "main_level": 8,
+  "today_date": "2026-03-02",
+  "today_xp": 0,
+  "stats": { "힘": 30.0, "민첩": 12.5, "정신력": 11, "지구력": 14.75 },
+  "stat_caps": { "힘": 50.0, "민첩": 30, "정신력": 30, "지구력": 30 }
+}

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 기존 앱 테마(Dark / DeepPurple / Amber)를 Material 3로 이식.
 class AppTheme {

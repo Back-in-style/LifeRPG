@@ -46,7 +46,7 @@ class _LifeRpgAppState extends ConsumerState<LifeRpgApp> {
   Widget build(BuildContext context) {
     final theme = AppTheme.of(ref.watch(appStyleProvider));
     return MaterialApp.router(
-      title: 'LifeRPG',
+      title: '심기체연',
       debugShowCheckedModeBanner: false,
       theme: theme,
       routerConfig: _router,

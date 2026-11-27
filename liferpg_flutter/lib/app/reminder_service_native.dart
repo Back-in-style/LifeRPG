@@ -63,7 +63,7 @@ class LocalReminderService implements ReminderService {
     if (s.enabled && granted) {
       await _plugin.zonedSchedule(
         _notificationId,
-        'LifeRPG',
+        '심기체연',
         '오늘 하루를 Claude와 정리하고 퀘스트를 확인하세요!',
         _nextInstance(s.hour, s.minute),
         const NotificationDetails(

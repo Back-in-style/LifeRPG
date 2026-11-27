@@ -1,11 +1,11 @@
 {
-    "name": "liferpg",
-    "short_name": "liferpg",
+    "name": "심기체연",
+    "short_name": "심기체연",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#131210",
+    "theme_color": "#B8432F",
+    "description": "심·기·체·연을 키우는 인생 게임",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

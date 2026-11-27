@@ -22,3 +22,7 @@ key.properties
 
 # 레거시 앱에서 꺼낸 개인 데이터
 legacy_data/
+
+# Claude Code 로컬 상태
+.claude/.progress-checked
+.claude/settings.local.json

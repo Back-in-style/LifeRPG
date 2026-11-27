@@ -142,8 +142,15 @@ class QuestCard extends ConsumerWidget {
                 CircleAvatar(
                   radius: 13,
                   backgroundColor: color.withValues(alpha: 0.25),
-                  child: Text(Labels.elementLabel(q.element),
-                      style: TextStyle(color: color, fontSize: 13)),
+                  child: Text(Labels.elementHanja(q.element),
+                      semanticsLabel: Labels.elementLabel(q.element),
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 13,
+                          fontFamily: SgcyPalette.of(context).wuxia
+                              ? AppTheme.serif
+                              : null,
+                          fontFamilyFallback: const [AppTheme.sans])),
                 ),
                 const SizedBox(width: 8),
                 Expanded(child: Text(q.title, style: t.titleSmall)),

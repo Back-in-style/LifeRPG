@@ -120,6 +120,8 @@ void main() {
     await tester.tap(find.byKey(const Key('save_quest')));
     await tester.pumpAndSettle();
     expect(find.text('러닝 3km'), findsOneWidget);
+    // 분야 표시 원: 한글 대신 한자
+    expect(find.text('體'), findsOneWidget);
 
     final id = (await repo.load()).activeQuests.single.id;
     await tester.tap(find.byKey(Key('complete_$id')));

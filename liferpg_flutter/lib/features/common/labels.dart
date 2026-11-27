@@ -29,6 +29,12 @@ abstract final class Labels {
         _ => Icons.info_outline,
       };
 
+  /// 요소 한자 (心·氣·體·緣). 없으면 한글 라벨.
+  static String elementHanja(String key) {
+    final h = SgcyConfig.elementByKey[key]?.hanja ?? '';
+    return h.isEmpty ? elementLabel(key) : h;
+  }
+
   static String elementLabel(String key) =>
       SgcyConfig.elementByKey[key]?.label ?? key;
 

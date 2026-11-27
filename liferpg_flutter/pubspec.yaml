@@ -45,3 +45,8 @@ flutter:
     - family: NanumGothic
       fonts:
         - asset: assets/fonts/NanumGothic.ttf
+    # 제목·한자용 명조. Noto Serif KR(OFL, assets/fonts/NotoSerifKR-OFL.txt) wght 600을
+    # 상용 한글 2,350자 + 앱에 쓰는 한자만 남긴 부분집합.
+    - family: SgcySerif
+      fonts:
+        - asset: assets/fonts/NotoSerifKR-SemiBold.ttf

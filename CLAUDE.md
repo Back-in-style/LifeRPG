@@ -16,3 +16,6 @@
 | `claude/` | claude.ai 프로젝트용 에이전트 키트 (지침·업데이트 형식·레벨 기준) |
 | `assets/private/` | 레거시 Python 앱 바이너리 (`main.pyc`) |
 | `.claude/` | 훅 설정 (`settings.json`, `hooks/`) |
+
+## 웹 미리보기 (포트 8080)
+`liferpg_flutter/tool/serve_web.sh` → `https://<CODESPACE_NAME>-8080.app.github.dev` (VS Code 포트 탭에도 표시). 코드를 바꾼 뒤엔 다시 실행. 자세한 건 `liferpg_flutter/CLAUDE.md`「웹 미리보기」.

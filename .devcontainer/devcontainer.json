@@ -15,6 +15,10 @@
   "remoteEnv": {
     "PATH": "${containerEnv:PATH}:/home/vscode/flutter/bin:/home/vscode/.pub-cache/bin:/home/vscode/android-sdk/cmdline-tools/latest/bin:/home/vscode/android-sdk/platform-tools"
   },
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": { "label": "LifeRPG 웹 미리보기", "onAutoForward": "notify" }
+  },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
     "vscode": {

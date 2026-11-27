@@ -4,15 +4,17 @@
 
 | 파일 | 용도 |
 |---|---|
+| `AGENT_GUIDE.md` | **먼저 읽을 문서** — 전체 흐름, 원칙, 입력·출력 체크리스트 (프로젝트 지식) |
 | `PROJECT_INSTRUCTIONS.md` | Claude 프로젝트 **지침**에 붙여 넣기 (대화 1 + 분석 4 역할) |
-| `UPDATE_FORMAT.md` | 통합 업데이트 파일(`sgcy-update`) 형식 — 프로젝트 지식에 올리기 |
-| `LEVEL_CRITERIA.md` | 세부스탯 13개 × 9레벨 절대 기준 초안 — 프로젝트 지식에 올리기 |
+| `STATE_FORMAT.md` | **입력** — 앱이 넘기는 브리핑 + 상태 파일(`sgcy-state`) 읽는 법 (프로젝트 지식) |
+| `UPDATE_FORMAT.md` | **출력** — 통합 업데이트 파일(`sgcy-update`) 형식 (프로젝트 지식) |
+| `LEVEL_CRITERIA.md` | 세부스탯 13개 × 9레벨 절대 기준 초안 (프로젝트 지식) |
 
 ## 처음 한 번
 
 1. claude.ai에서 프로젝트 "심기체연" 생성
 2. 지침에 `PROJECT_INSTRUCTIONS.md` 내용 붙여 넣기
-3. 지식에 `심기체연 인생 게임 규칙서.md`, `UPDATE_FORMAT.md`, `LEVEL_CRITERIA.md` 올리기
+3. 지식에 `AGENT_GUIDE.md`, `STATE_FORMAT.md`, `UPDATE_FORMAT.md`, `LEVEL_CRITERIA.md`, `구상/심기체연 인생 게임 규칙서.md` 올리기
 4. 첫 대화에서 초기 판정 → 업데이트 파일의 `placements`로 13개 세부스탯 레벨 배치
 
 ## 매일

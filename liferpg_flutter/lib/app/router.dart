@@ -5,13 +5,14 @@ import '../features/logs/logs_screen.dart';
 import '../features/quests/add_quest_screen.dart';
 import '../features/quests/quests_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/skills/skills_screen.dart';
 import '../features/status/element_screen.dart';
 import '../features/status/status_screen.dart';
 import '../features/sync/sync_screen.dart';
 
 /// 라우터 (위젯 테스트마다 새 인스턴스가 필요해서 함수로 둔다).
 ///
-/// 하단 탭 4개 (상태창 / 퀘스트 / 연동 / 로그) + 요소 상세·퀘스트 추가·설정(push).
+/// 하단 탭 5개 (상태창 / 스킬 / 퀘스트 / 연동 / 로그) + 요소 상세·퀘스트 추가·설정(push).
 GoRouter createAppRouter() => GoRouter(
       initialLocation: '/status',
       routes: [
@@ -21,6 +22,10 @@ GoRouter createAppRouter() => GoRouter(
             StatefulShellBranch(routes: [
               GoRoute(
                   path: '/status', builder: (_, __) => const StatusScreen()),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/skills', builder: (_, __) => const SkillsScreen()),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
@@ -63,6 +68,7 @@ class _HomeShell extends StatelessWidget {
             shell.goBranch(i, initialLocation: i == shell.currentIndex),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.account_circle), label: '상태창'),
+          NavigationDestination(icon: Icon(Icons.bolt), label: '스킬'),
           NavigationDestination(icon: Icon(Icons.shield), label: '퀘스트'),
           NavigationDestination(icon: Icon(Icons.forum), label: '연동'),
           NavigationDestination(icon: Icon(Icons.history), label: '로그'),

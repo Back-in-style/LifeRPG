@@ -1,16 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:liferpg/domain/domain.dart';
 
-/// 화면 공용 라벨·색·아이콘.
+/// 화면 공용 라벨·아이콘. (요소·레벨 색은 테마의 `SgcyPalette`)
 abstract final class Labels {
-  static Color elementColor(String key) => switch (key) {
-        'sim' => const Color(0xFFE57373), // 마음
-        'gi' => const Color(0xFF64B5F6), // 지식
-        'che' => const Color(0xFF81C784), // 육체
-        'yeon' => const Color(0xFFFFB74D), // 매력
-        _ => Colors.grey,
-      };
-
   static IconData elementIcon(String key) => switch (key) {
         'sim' => Icons.favorite,
         'gi' => Icons.menu_book,
@@ -18,22 +10,6 @@ abstract final class Labels {
         'yeon' => Icons.people,
         _ => Icons.circle,
       };
-
-  /// 레벨 색 (1 회색 → 9 금색).
-  static Color levelColor(int level) {
-    const colors = [
-      Color(0xFF9E9E9E),
-      Color(0xFFA1887F),
-      Color(0xFF8D9E6B),
-      Color(0xFF4DB6AC),
-      Color(0xFF4FC3F7),
-      Color(0xFF7986CB),
-      Color(0xFFBA68C8),
-      Color(0xFFFF8A65),
-      Color(0xFFFFD700),
-    ];
-    return colors[SgcyConfig.clampLevel(level) - 1];
-  }
 
   static IconData kindIcon(String kind) => switch (kind) {
         QuestKind.daily => Icons.today,
@@ -60,7 +36,7 @@ abstract final class Labels {
       SgcyConfig.substatByKey[key]?.label ?? key;
 
   static String rewardsText(Quest q) {
-    final sign = q.isWarning ? '−' : '+';
+    final sign = q.isWarning ? '-' : '+';
     return q.rewards.entries
         .map((e) => '${substatLabel(e.key)} $sign${formatStat(e.value)}')
         .join('  ');

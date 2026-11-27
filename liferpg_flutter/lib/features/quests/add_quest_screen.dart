@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liferpg/domain/domain.dart';
 
+import '../../app/theme.dart';
 import '../../app/providers.dart';
 import '../common/async_view.dart';
 import '../common/labels.dart';
@@ -300,7 +301,7 @@ class _Preview extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Text(
           '${r.ok ? '보상: ' : '⚠ '}$text',
-          style: TextStyle(color: r.ok ? null : Colors.orange),
+          style: TextStyle(color: r.ok ? null : SgcyPalette.of(context).warn),
         ),
       ),
     );

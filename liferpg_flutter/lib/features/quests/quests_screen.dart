@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liferpg/domain/domain.dart';
 
+import '../../app/theme.dart';
 import '../../app/providers.dart';
 import '../common/async_view.dart';
 import '../common/labels.dart';
@@ -104,7 +105,7 @@ class QuestCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final q = quest;
     final t = Theme.of(context).textTheme;
-    final color = Labels.elementColor(q.element);
+    final color = SgcyPalette.of(context).element(q.element);
     final dl = Labels.deadlineText(q, today);
     final checkedToday = q.checkins.contains(today);
     final ctrl = ref.read(gameControllerProvider.notifier);
@@ -128,7 +129,7 @@ class QuestCard extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: q.isWarning
-            ? const BorderSide(color: Colors.orange)
+            ? BorderSide(color: SgcyPalette.of(context).warn)
             : BorderSide(color: color.withValues(alpha: 0.4)),
       ),
       child: Padding(
@@ -176,7 +177,9 @@ class QuestCard extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 4, right: 8),
                 child: Text(details.join(' · '),
                     style: t.bodySmall?.copyWith(
-                        color: q.isWarning ? Colors.orange : Colors.amber)),
+                        color: q.isWarning
+                            ? SgcyPalette.of(context).warn
+                            : SgcyPalette.of(context).reward)),
               ),
             if (q.hasCheckins) ...[
               const SizedBox(height: 6),

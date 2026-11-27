@@ -59,9 +59,10 @@ abstract final class SgcyConfig {
   static const List<ElementDef> elements = [
     ElementDef('sim', '심', '心', '마음',
         ['execution', 'patience', 'temperance', 'composure']),
-    ElementDef('gi', '기', '', '지식·기타', ['knowledge', 'thinking', 'focus']),
+    ElementDef('gi', '기', '氣', '지식·기타', ['knowledge', 'thinking', 'focus']),
     ElementDef('che', '체', '體', '육체', ['strength', 'agility', 'stamina']),
-    ElementDef('yeon', '연', '', '매력', ['appearance', 'sociability', 'network']),
+    ElementDef(
+        'yeon', '연', '緣', '매력', ['appearance', 'sociability', 'network']),
   ];
 
   static const List<SubStatDef> substats = [

@@ -10,7 +10,7 @@ ref=PROGRESS.md
 [ -f "$stamp" ] && [ "$stamp" -nt PROGRESS.md ] && ref="$stamp"
 
 changed=$(find . \( -path ./.git -o -path ./.dart_tool -o -path ./.idea -o -path '*/build' \
-  -o -path '*/.dart_tool' -o -path '*/.gradle' -o -path ./.claude/.progress-checked \) -prune \
+  -o -path '*/.dart_tool' -o -path '*/.gradle' -o -path ./.claude/.progress-checked -o -name .flutter-plugins-dependencies -o -name 'GeneratedPluginRegistrant*' -o -name 'generated_plugin*' \) -prune \
   -o -type f -newer "$ref" ! -name PROGRESS.md -print 2>/dev/null | head -5)
 [ -z "$changed" ] && exit 0
 

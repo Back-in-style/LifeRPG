@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liferpg/domain/domain.dart';
+import 'package:liferpg/features/status/element_orbit.dart';
 
 import 'test_app.dart';
 
@@ -11,12 +12,18 @@ void main() {
         TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
     view.physicalSize = const Size(420, 1400);
     view.devicePixelRatio = 1;
+    // 메인화면 궤도는 계속 돌아서 pumpAndSettle이 끝나지 않는다 → 애니메이션 줄이기로 멈춤.
+    TestWidgetsFlutterBinding
+            .instance.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
   });
   tearDown(() {
     final view =
         TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
     view.resetPhysicalSize();
     view.resetDevicePixelRatio();
+    TestWidgetsFlutterBinding.instance.platformDispatcher
+        .clearAccessibilityFeaturesTestValue();
   });
 
   testWidgets('상태창: 심기체연 4요소 → 눌러서 세부스탯', (tester) async {
@@ -25,14 +32,61 @@ void main() {
     for (final e in ['sim', 'gi', 'che', 'yeon']) {
       expect(find.byKey(Key('element_$e')), findsOneWidget);
     }
-    expect(find.text('Lv 1.0'), findsNWidgets(4));
+    for (final name in ['심 心', '기 氣', '체 體', '연 緣']) {
+      expect(find.text(name), findsOneWidget);
+    }
+    expect(find.text('1Lv'), findsNWidgets(4));
+    expect(find.text('탈위 脫位'), findsNWidgets(4));
 
     await tester.tap(find.byKey(const Key('element_che')));
     await tester.pumpAndSettle();
     expect(find.text('근력'), findsOneWidget);
     expect(find.text('민첩성'), findsOneWidget);
     expect(find.text('체력'), findsOneWidget);
-    expect(find.text('Lv1 탈위 脫位'), findsNWidgets(3));
+    expect(find.text('1Lv 탈위 脫位'), findsNWidgets(3));
+    expect(find.textContaining('보상'), findsNothing);
+    expect(find.textContaining('강등선'), findsNothing);
+    expect(find.textContaining('Σ'), findsNothing);
+  });
+
+  testWidgets('메인화면 궤도: 심 위·체 오른쪽·연 아래·기 왼쪽 → 시계 방향 공전', (tester) async {
+    await tester.pumpWidget(testApp(newRepo()));
+    await tester.pumpAndSettle();
+    Offset at(String e) => tester.getCenter(find.byKey(Key('element_$e')));
+    final sim = at('sim'), che = at('che'), yeon = at('yeon'), gi = at('gi');
+    expect(sim.dy, lessThan(che.dy));
+    expect(yeon.dy, greaterThan(che.dy));
+    expect(che.dx, greaterThan(sim.dx));
+    expect(gi.dx, lessThan(sim.dx));
+
+    // 애니메이션 허용 → 1/4 바퀴 뒤 심이 체 자리로.
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures();
+    await tester.pump();
+    await tester.pump(ElementOrbit.period ~/ 4);
+    expect((at('sim') - che).distance, lessThan(2));
+    expect((at('gi') - sim).distance, lessThan(2));
+  });
+
+  testWidgets('스킬 탭: 메인화면엔 없고 탭에서 보기·삭제', (tester) async {
+    final s0 = GameState.initial(fixedNow).copyWith(skills: const [
+      Skill(id: 1, name: '퀵 슬립', element: 'che', acquiredDate: '2026-11-20'),
+    ]);
+    final repo = newRepo(s0);
+    await tester.pumpWidget(testApp(repo));
+    await tester.pumpAndSettle();
+    expect(find.text('퀵 슬립'), findsNothing);
+
+    await tester.tap(find.text('스킬'));
+    await tester.pumpAndSettle();
+    expect(find.text('퀵 슬립'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('skill_1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('스킬 삭제'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('아직 스킬이 없어요'), findsOneWidget);
+    expect((await repo.load()).skills, isEmpty);
   });
 
   testWidgets('레벨 배치 → 주요 요소 레벨 갱신', (tester) async {
@@ -43,9 +97,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('레벨 배치').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('9 초월'));
+    await tester.tap(find.textContaining('9Lv 초월'));
     await tester.pumpAndSettle();
-    expect(find.text('Lv 7.55'), findsOneWidget);
+    expect(find.text('7Lv'), findsOneWidget); // 7.55 → 정수
+    expect(find.textContaining('7.5'), findsNothing);
     expect((await repo.load()).substat('knowledge').level, 9);
   });
 

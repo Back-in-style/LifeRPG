@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/reminder.dart';
+import '../../app/theme.dart';
 import '../common/async_view.dart';
 
 /// 설정 — 매일 대화 리마인더.
@@ -55,6 +56,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
         children: [
+          const _Header('디자인 (비교용 · 앱을 껐다 켜면 묵향으로 돌아감)'),
+          const _StylePicker(),
           const _Header('알림'),
           AsyncView<ReminderSettings>(
             value: reminder,
@@ -99,4 +102,27 @@ class _Header extends StatelessWidget {
                 .labelLarge
                 ?.copyWith(color: Theme.of(context).colorScheme.secondary)),
       );
+}
+
+class _StylePicker extends ConsumerWidget {
+  const _StylePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(appStyleProvider);
+    return Column(
+      children: [
+        for (final s in AppStyle.values)
+          ListTile(
+            key: Key('style_${s.name}'),
+            leading: Icon(s == current
+                ? Icons.radio_button_checked
+                : Icons.radio_button_unchecked),
+            title: Text(s.label),
+            subtitle: Text(s.desc),
+            onTap: () => ref.read(appStyleProvider.notifier).state = s,
+          ),
+      ],
+    );
+  }
 }

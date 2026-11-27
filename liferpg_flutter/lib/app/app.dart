@@ -44,12 +44,11 @@ class _LifeRpgAppState extends ConsumerState<LifeRpgApp> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = AppTheme.of(ref.watch(appStyleProvider));
     return MaterialApp.router(
       title: 'LifeRPG',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.dark,
+      theme: theme,
       routerConfig: _router,
       locale: const Locale('ko', 'KR'),
       supportedLocales: const [Locale('ko', 'KR'), Locale('en', 'US')],

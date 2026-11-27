@@ -2,11 +2,13 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liferpg/domain/domain.dart';
 
+import '../../app/theme.dart';
 import '../../app/providers.dart';
 import '../common/async_view.dart';
-import '../common/labels.dart';
+import 'element_orbit.dart';
 
-/// 주요 요소 상세 — 세부스탯 레벨·스탯 게이지·강등선·보호·자연 감소.
+/// 주요 요소 상세 — 요소 구 + 세부스탯 레벨·게이지·상태 표시.
+/// 보상량·공식·강등선 같은 내부 수치는 보여 주지 않는다 (브리핑에만 들어감).
 class ElementScreen extends ConsumerWidget {
   const ElementScreen({super.key, required this.elementKey});
 
@@ -20,38 +22,26 @@ class ElementScreen extends ConsumerWidget {
       return Scaffold(
           appBar: AppBar(), body: const Center(child: Text('없는 요소')));
     }
-    final color = Labels.elementColor(def.key);
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            '${def.label}${def.hanja.isEmpty ? '' : ' ${def.hanja}'} · ${def.meaning}'),
+        title: Text('${def.label} ${def.hanja} · ${def.meaning}'),
       ),
       body: AsyncView<GameState>(
         value: game,
         builder: (context, s) {
-          final lv = s.elementLevel(def.key);
-          final rl = s.elementRewardLevel(def.key);
           final t = Theme.of(context).textTheme;
           final obs =
               s.observations.where((o) => o.element == def.key).toList();
           return ListView(
             padding: const EdgeInsets.all(12),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Lv ${lv.toStringAsFixed(2)}',
-                          style: t.headlineMedium?.copyWith(
-                              color: color, fontWeight: FontWeight.bold)),
-                      Text('보상 기준 $rl레벨 ${SgcyConfig.levelName(rl)} · '
-                          '일일 보상 ${formatStat(SgcyConfig.dailyReward(rl))} · '
-                          '주간 ${formatStat(SgcyConfig.dailyReward(rl) * SgcyConfig.weeklyMultiplier)}'),
-                      const SizedBox(height: 4),
-                      Text('레벨 = Σ(세부 레벨²) / Σ(세부 레벨)', style: t.bodySmall),
-                    ],
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: SizedBox.square(
+                    dimension: 168,
+                    child:
+                        ElementSphere(state: s, element: def, tappable: false),
                   ),
                 ),
               ),
@@ -92,18 +82,19 @@ class SubStatCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context).textTheme;
-    final lc = Labels.levelColor(sub.level);
+    final pal = SgcyPalette.of(context);
+    final lc = pal.level(sub.level);
     final idle = daysBetween(sub.lastActiveDate, today);
     final line = sub.demotionLine;
     final notes = <Widget>[
       if (sub.isProtected(today))
-        _tag(Icons.shield, '보호 ~${sub.protectedUntil}', Colors.lightBlue),
+        _tag(Icons.shield, '보호 ~${sub.protectedUntil}', pal.protect),
       if (idle != null && idle > SgcyConfig.decayGraceDays)
-        _tag(Icons.trending_down, '자연 감소 중 ($idle일)', Colors.redAccent)
+        _tag(Icons.trending_down, '자연 감소 중 ($idle일)', pal.danger)
       else if (idle != null && idle == SgcyConfig.decayGraceDays)
-        _tag(Icons.schedule, '내일부터 감소', Colors.orange),
+        _tag(Icons.schedule, '내일부터 감소', pal.warn),
       if (line != null && !sub.isProtected(today) && sub.stat <= line * 1.1)
-        _tag(Icons.warning_amber, '강등 위험', Colors.orange),
+        _tag(Icons.warning_amber, '강등 위험', pal.warn),
     ];
     return Card(
       key: Key('substat_${sub.key}'),
@@ -118,22 +109,25 @@ class SubStatCard extends ConsumerWidget {
                 children: [
                   Text(sub.label, style: t.titleMedium),
                   const SizedBox(width: 8),
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: lc.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: lc),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: lc.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(
+                              SgcyPalette.of(context).wuxia ? 3 : 8),
+                          border: Border.all(color: lc),
+                        ),
+                        child: Text(
+                            '${sub.level}Lv ${sub.levelName} ${SgcyConfig.levelHanja[sub.level - 1]}',
+                            overflow: TextOverflow.ellipsis,
+                            style: t.labelMedium?.copyWith(color: lc)),
                       ),
-                      child: Text(
-                          'Lv${sub.level} ${sub.levelName} ${SgcyConfig.levelHanja[sub.level - 1]}',
-                          overflow: TextOverflow.ellipsis,
-                          style: t.labelMedium?.copyWith(color: lc)),
                     ),
                   ),
-                  const Spacer(),
                   IconButton(
                     tooltip: '레벨 배치',
                     visualDensity: VisualDensity.compact,
@@ -149,45 +143,21 @@ class SubStatCard extends ConsumerWidget {
                     value: sub.gauge, minHeight: 10, color: lc),
               ),
               const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: _fit(
-                        Text(line == null ? '0' : '강등선 ${formatStat(line)}',
-                            style: t.bodySmall),
-                        Alignment.centerLeft),
-                  ),
-                  Expanded(
-                    child: _fit(
-                        Text('스탯 ${formatStat(sub.stat)}',
-                            style: t.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.bold)),
-                        Alignment.center),
-                  ),
-                  Expanded(
-                    child: _fit(
-                        Text('기준 ${formatStat(sub.baseStat)}',
-                            style: t.bodySmall),
-                        Alignment.centerRight),
-                  ),
-                ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(formatStat(sub.stat),
+                    style: t.labelMedium?.copyWith(color: lc)),
               ),
               if (notes.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 4, children: notes),
               ],
-              const SizedBox(height: 2),
-              Text(SgcyConfig.levelDistribution[sub.level - 1],
-                  style: t.labelSmall),
             ],
           ),
         ),
       ),
     );
   }
-
-  Widget _fit(Widget child, Alignment a) =>
-      FittedBox(fit: BoxFit.scaleDown, alignment: a, child: child);
 
   Widget _tag(IconData icon, String text, Color color) => Row(
         mainAxisSize: MainAxisSize.min,
@@ -207,14 +177,13 @@ class SubStatCard extends ConsumerWidget {
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text('초기 판정이나 보정용이에요. 평소 승급은 특별 퀘스트로 합니다.\n'
-                '배치하면 그 레벨의 승급 직후 스탯이 되고 3일간 보호됩니다.'),
+            child: Text('처음 자리를 잡거나 바로잡을 때만 써요.'),
           ),
           for (var l = 1; l <= SgcyConfig.maxLevel; l++)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, l),
               child: Text(
-                  '$l ${SgcyConfig.levelName(l)} — ${SgcyConfig.levelDistribution[l - 1]}'
+                  '${l}Lv ${SgcyConfig.levelName(l)} ${SgcyConfig.levelHanja[l - 1]}'
                   '${l == sub.level ? '  (현재)' : ''}'),
             ),
         ],

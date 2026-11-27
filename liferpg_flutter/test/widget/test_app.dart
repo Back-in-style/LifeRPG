@@ -23,8 +23,12 @@ class FakeReminderService implements ReminderService {
   }
 }
 
-Widget testApp(InMemoryGameRepository repo) => ProviderScope(
+/// [extra]: 추가 override (예: 디자인 안).
+Widget testApp(InMemoryGameRepository repo,
+        {List<Override> extra = const []}) =>
+    ProviderScope(
       overrides: [
+        ...extra,
         clockProvider.overrideWithValue(() => fixedNow),
         gameRepositoryProvider.overrideWith((ref) async => repo),
         reminderServiceProvider.overrideWithValue(FakeReminderService()),

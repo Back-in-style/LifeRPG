@@ -1,7 +1,7 @@
 name: liferpg
-description: 현실성 기반 자기계발 인생 RPG
+description: 심기체연 인생 게임
 publish_to: "none"
-version: 2.0.0+1
+version: 3.0.0+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

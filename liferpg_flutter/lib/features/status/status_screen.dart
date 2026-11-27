@@ -7,7 +7,7 @@ import '../../app/providers.dart';
 import '../common/async_view.dart';
 import '../common/labels.dart';
 
-/// 상태창 — 메인 레벨, 오늘 XP, 스트릭, 스탯 7종, 스킬 트리 7종, 업적.
+/// 상태창 — 심·기·체·연 4요소. 누르면 세부스탯.
 class StatusScreen extends ConsumerWidget {
   const StatusScreen({super.key});
 
@@ -16,16 +16,10 @@ class StatusScreen extends ConsumerWidget {
     final game = ref.watch(gameControllerProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('⚔ LifeRPG'),
+        title: const Text('심기체연'),
         actions: [
           IconButton(
-            tooltip: '업적',
-            icon: const Icon(Icons.emoji_events),
-            onPressed: game.hasValue
-                ? () => showAchievementsDialog(context, game.requireValue)
-                : null,
-          ),
-          IconButton(
+            key: const Key('open_settings'),
             tooltip: '설정',
             icon: const Icon(Icons.settings),
             onPressed: () => context.push('/settings'),
@@ -35,18 +29,34 @@ class StatusScreen extends ConsumerWidget {
       body: AsyncView<GameState>(
         value: game,
         builder: (context, s) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.all(12),
           children: [
-            _LevelCard(state: s),
-            const _SectionTitle('스탯'),
-            for (final k in GameConfig.statKeys)
-              if (s.profile.stats[k] != null) _StatTile(stat: s.profile.stats[k]!),
-            const _SectionTitle('스킬 트리'),
-            for (final k in GameConfig.treeKeys)
-              _TreeTile(treeKey: k, info: s.profile.treeLevel(k),
-                  totalXp: s.profile.trees[k]?.totalXp ?? 0),
-            const _SectionTitle('업적'),
-            _AchievementSummary(state: s),
+            _Header(state: s),
+            const SizedBox(height: 8),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.95,
+              children: [
+                for (final e in SgcyConfig.elements)
+                  ElementCard(state: s, element: e),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SkillsCard(state: s),
+            if (s.lastSummary.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.forum),
+                  title: Text('최근 대화 요약 (${s.lastUpdateDate ?? ''})'),
+                  subtitle: Text(s.lastSummary),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -54,299 +64,197 @@ class StatusScreen extends ConsumerWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
-        child: Text(text,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold)),
-      );
-}
-
-class _LevelCard extends ConsumerWidget {
-  const _LevelCard({required this.state});
+class _Header extends StatelessWidget {
+  const _Header({required this.state});
   final GameState state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final p = state.profile;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Main Lv. ${p.mainLevel}',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold, color: scheme.secondary)),
-            const SizedBox(height: 4),
-            Text('오늘: ${p.todayDate}',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                    child: _Metric(
-                        icon: Icons.auto_awesome,
-                        label: 'Today XP',
-                        value: '${p.todayXp}')),
-                Expanded(
-                    child: _Metric(
-                        icon: Icons.local_fire_department,
-                        label: '스트릭',
-                        value: '${p.streakDays}일')),
-                Expanded(
-                    child: _Metric(
-                        icon: Icons.task_alt,
-                        label: '누적 완료',
-                        value: '${p.totalCompletions}')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('reset_today_xp'),
-                onPressed: () => _confirmResetTodayXp(context, ref),
-                icon: const Icon(Icons.restart_alt, size: 18),
-                label: const Text('오늘 XP 초기화'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({required this.icon, required this.label, required this.value});
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
+    final active = state.activeQuests;
+    final warnings = active.where((q) => q.isWarning).length;
+    final daily = active.where((q) => q.kind == QuestKind.daily).length;
+    final t = Theme.of(context).textTheme;
+    return Row(
       children: [
-        Icon(icon, size: 20, color: theme.colorScheme.secondary),
-        const SizedBox(height: 4),
-        Text(value,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        Text(label, style: theme.textTheme.bodySmall),
+        Text(state.today, style: t.titleMedium),
+        const Spacer(),
+        Chip(
+          avatar: const Icon(Icons.today, size: 16),
+          label: Text('일일 $daily'),
+          visualDensity: VisualDensity.compact,
+        ),
+        if (warnings > 0) ...[
+          const SizedBox(width: 6),
+          Chip(
+            avatar:
+                const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+            label: Text('경고 $warnings'),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ],
     );
   }
 }
 
-class _StatTile extends StatelessWidget {
-  const _StatTile({required this.stat});
-  final StatState stat;
+/// 주요 요소 카드: 큰 글자 + 레벨 + 세부스탯 미니 막대.
+class ElementCard extends StatelessWidget {
+  const ElementCard({super.key, required this.state, required this.element});
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final grade = gradeFromCap(stat.cap);
-    final color = Labels.gradeColor(grade);
-    final ratio = stat.cap <= 0 ? 0.0 : (stat.value / stat.cap).clamp(0.0, 1.0);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                      '${GameConfig.statIcons[stat.key] ?? ''} ${stat.key}',
-                      style: theme.textTheme.titleSmall),
-                ),
-                Text(stat.value.toStringAsFixed(1),
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                Text(' / ${Labels.num(stat.cap)}',
-                    style: theme.textTheme.bodySmall),
-                const SizedBox(width: 12),
-                Container(
-                  width: 28,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.2),
-                    border: Border.all(color: color),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(grade,
-                      style: TextStyle(
-                          color: color, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: ratio,
-              color: color,
-              minHeight: 4,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TreeTile extends StatelessWidget {
-  const _TreeTile(
-      {required this.treeKey, required this.info, required this.totalXp});
-  final String treeKey;
-  final LevelInfo info;
-  final int totalXp;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${GameConfig.treeIcons[treeKey] ?? ''} '
-                    '${GameConfig.treeLabels[treeKey] ?? treeKey}',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Text('Lv. ${info.level}',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(color: theme.colorScheme.secondary)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '총 XP: $totalXp   |   다음 레벨까지: '
-              '${info.xpForNext - info.xpInLevel} XP',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: info.progress.clamp(0.0, 1.0),
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AchievementSummary extends StatelessWidget {
-  const _AchievementSummary({required this.state});
   final GameState state;
+  final ElementDef element;
 
   @override
   Widget build(BuildContext context) {
-    final unlocked = state.unlockedAchievements;
+    final color = Labels.elementColor(element.key);
+    final lv = state.elementLevel(element.key);
+    final floor = state.elementRewardLevel(element.key);
+    final t = Theme.of(context).textTheme;
     return Card(
-      child: Column(
+      key: Key('element_${element.key}'),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/element/${element.key}'),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [color.withValues(alpha: 0.28), Colors.transparent],
+            ),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(element.label,
+                      style: t.displaySmall?.copyWith(
+                          color: color, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(element.meaning,
+                        style: t.bodySmall, overflow: TextOverflow.ellipsis),
+                  ),
+                  Icon(Labels.elementIcon(element.key), color: color, size: 20),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text('Lv ${lv.toStringAsFixed(1)}',
+                  style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              Text(SgcyConfig.levelName(floor),
+                  style:
+                      t.bodyMedium?.copyWith(color: Labels.levelColor(floor))),
+              const Spacer(),
+              for (final k in element.substats) _MiniBar(sub: state.substat(k)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniBar extends StatelessWidget {
+  const _MiniBar({required this.sub});
+  final SubStat sub;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
         children: [
-          for (final a in GameConfig.achievements) _AchievementTile(a, unlocked.contains(a.id)),
+          SizedBox(
+            width: 44,
+            child: Text(sub.label,
+                style: Theme.of(context).textTheme.labelSmall,
+                overflow: TextOverflow.ellipsis),
+          ),
+          Text('${sub.level}',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelSmall
+                  ?.copyWith(color: Labels.levelColor(sub.level))),
+          const SizedBox(width: 4),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: sub.gauge,
+                minHeight: 4,
+                color: Labels.levelColor(sub.level),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _AchievementTile extends StatelessWidget {
-  const _AchievementTile(this.def, this.unlocked);
-  final AchievementDef def;
-  final bool unlocked;
+class _SkillsCard extends ConsumerWidget {
+  const _SkillsCard({required this.state});
+  final GameState state;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListTile(
-      dense: true,
-      leading: Text(unlocked ? def.icon : '🔒',
-          style: const TextStyle(fontSize: 22)),
-      title: Text(def.name,
-          style: unlocked
-              ? const TextStyle(fontWeight: FontWeight.bold)
-              : TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-      subtitle: Text(unlocked ? def.desc : '???'),
-    );
-  }
-}
-
-/// 업적 다이얼로그 (해금 수 / 전체).
-Future<void> showAchievementsDialog(BuildContext context, GameState s) {
-  final unlocked = s.unlockedAchievements;
-  final count =
-      GameConfig.achievements.where((a) => unlocked.contains(a.id)).length;
-  return showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('🏆 업적 ($count/${GameConfig.achievements.length})'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: ListView(
-          shrinkWrap: true,
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final a in GameConfig.achievements)
-              _AchievementTile(a, unlocked.contains(a.id)),
+            Text('스킬', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            if (state.skills.isEmpty)
+              const Text('아직 스킬이 없어요. 특별 퀘스트로 습관을 스킬로 만드세요.')
+            else
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final k in state.skills)
+                    ActionChip(
+                      avatar: Icon(Icons.bolt,
+                          size: 16, color: Labels.elementColor(k.element)),
+                      label: Text(k.failStreak > 0
+                          ? '${k.name} ⚠${k.failStreak}'
+                          : k.name),
+                      onPressed: () => _showSkill(context, ref, k),
+                    ),
+                ],
+              ),
           ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('닫기')),
-      ],
-    ),
-  );
-}
+    );
+  }
 
-/// 오늘 XP 초기화 확인 (SPEC_v1 §5.2).
-Future<void> _confirmResetTodayXp(BuildContext context, WidgetRef ref) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('오늘 XP 초기화'),
-      content: const Text('오늘 XP를 0으로 초기화할까요? (되돌리기 어려움)'),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소')),
-        FilledButton(
-            key: const Key('reset_today_xp_confirm'),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('초기화')),
-      ],
-    ),
-  );
-  if (ok != true || !context.mounted) return;
-  try {
-    final r = await ref.read(gameControllerProvider.notifier).resetTodayXp();
-    if (!context.mounted) return;
-    showSnack(context, r.ok ? '오늘 XP가 초기화되었습니다.' : Labels.error(r.error!));
-  } catch (e) {
-    if (context.mounted) showSnack(context, '초기화 실패: $e');
+  Future<void> _showSkill(BuildContext context, WidgetRef ref, Skill k) async {
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(k.name),
+        content: Text([
+          if (k.desc.isNotEmpty) k.desc,
+          if (k.element.isNotEmpty) '요소: ${Labels.elementLabel(k.element)}',
+          '획득: ${k.acquiredDate}',
+          '경고 연속 실패: ${k.failStreak}/${SgcyConfig.skillDeleteAfterFails}',
+        ].join('\n')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('스킬 삭제')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('닫기')),
+        ],
+      ),
+    );
+    if (remove == true) {
+      await ref.read(gameControllerProvider.notifier).removeSkill(k.id);
+    }
   }
 }

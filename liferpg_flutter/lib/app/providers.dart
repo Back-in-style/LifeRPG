@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liferpg/data/data.dart';
 import 'package:liferpg/domain/domain.dart';
@@ -14,7 +16,6 @@ final gameRepositoryProvider = FutureProvider<GameRepository>((ref) async {
   return repo;
 });
 
-/// 상태 + 액션 (INTERFACES §5).
 final gameControllerProvider =
     AsyncNotifierProvider<GameController, GameState>(GameController.new);
 
@@ -25,16 +26,20 @@ final recentEventsProvider = FutureProvider<List<LogEvent>>((ref) async {
   return repo.recentEvents(limit: 200);
 });
 
-/// 완료 기록, 최신순. 인자는 카테고리 필터 (null이면 전체).
-final completionsProvider =
-    FutureProvider.family<List<Completion>, String?>((ref, category) async {
-  await ref.watch(gameControllerProvider.future);
-  final repo = await ref.watch(gameRepositoryProvider.future);
-  return repo.completions(category: category);
-});
+/// 붙여 넣은 글에서 JSON 객체를 꺼낸다 (```json 코드블록 또는 첫 `{` ~ 마지막 `}`).
+Map<String, Object?> extractJsonObject(String text) {
+  var src = text.trim();
+  final fence = RegExp(r'```(?:json)?\s*([\s\S]*?)```').firstMatch(src);
+  if (fence != null) src = fence.group(1)!.trim();
+  final a = src.indexOf('{'), b = src.lastIndexOf('}');
+  if (a < 0 || b <= a) throw const FormatException('JSON 객체를 찾지 못했습니다');
+  final v = jsonDecode(src.substring(a, b + 1));
+  if (v is! Map) throw const FormatException('JSON 객체가 아닙니다');
+  return {for (final e in v.entries) e.key.toString(): e.value as Object?};
+}
 
-/// 게임 컨트롤러. 각 액션: 엔진 호출 → 성공 시 repository.commit → 상태 갱신 → 결과 반환.
-/// 실패(`result.error != null`)면 저장하지 않고 결과만 돌려준다.
+/// 게임 컨트롤러. 각 액션: 엔진 호출 → 성공 시 저장 → 상태 갱신 → 결과 반환.
+/// 실패(`result.error != null`)면 저장하지 않는다.
 class GameController extends AsyncNotifier<GameState> {
   GameEngine get _engine => ref.read(gameEngineProvider);
   DateTime _now() => ref.read(clockProvider)();
@@ -44,15 +49,14 @@ class GameController extends AsyncNotifier<GameState> {
   Future<GameState> build() async {
     final repo = await ref.watch(gameRepositoryProvider.future);
     final loaded = await repo.load();
-    final r = ref.read(gameEngineProvider).dailyRollover(loaded, _now());
-    if (r.events.isNotEmpty || !identical(r.state, loaded)) {
+    final r = ref.read(gameEngineProvider).rollover(loaded, _now());
+    if (!identical(r.state, loaded)) {
       await repo.commit(r.state, events: r.events);
     }
     return r.state;
   }
 
-  /// 액션 직렬화 큐. 모든 상태 변경(액션·rollover·import)은 한 번에 하나씩 실행되고,
-  /// 각 작업은 자기 차례에서 최신 상태를 읽는다 (동시 완료·추가 시 갱신 유실 방지).
+  /// 액션 직렬화 큐 (동시 액션 시 갱신 유실 방지).
   Future<void> _queue = Future<void>.value();
 
   Future<T> _serial<T>(Future<T> Function() task) {
@@ -61,75 +65,79 @@ class GameController extends AsyncNotifier<GameState> {
     return next;
   }
 
-  /// 큐 차례에서의 최신 상태 (첫 로딩 중이면 기다린다).
   Future<GameState> _latest() async {
     await future;
     return state.requireValue;
   }
 
+  /// 액션 전에 항상 롤오버(날짜가 바뀌었으면)를 먼저 적용한다.
   Future<T> _run<T extends EngineResult>(
-    T Function(GameState s, DateTime now) op, {
-    Completion? Function(T r)? completion,
-  }) =>
+          T Function(GameState s, DateTime now) op) =>
       _serial(() async {
-        final s = await _latest();
-        final r = op(s, _now());
-        if (!r.ok) return r;
+        final now = _now();
+        final roll = _engine.rollover(await _latest(), now);
+        final r = op(roll.state, now);
         final repo = await _repo;
-        await repo.commit(r.state,
-            events: r.events, completion: completion?.call(r));
+        if (!r.ok) {
+          if (!identical(roll.state, state.requireValue)) {
+            await repo.commit(roll.state, events: roll.events);
+            state = AsyncData(roll.state);
+          }
+          return r;
+        }
+        final events = [...roll.events, ...r.events];
+        if (events.isEmpty && identical(r.state, state.requireValue)) return r;
+        await repo.commit(r.state, events: events);
         state = AsyncData(r.state);
         return r;
       });
 
-  /// 날짜가 바뀌었으면 일일 리셋 (앱 포그라운드 복귀 시).
-  Future<EngineResult> dailyRollover() => _serial(() async {
-        final s = await _latest();
-        final r = _engine.dailyRollover(s, _now());
-        if (r.events.isEmpty && identical(r.state, s)) return r;
+  Future<EngineResult> rollover() =>
+      _run((s, now) => EngineResult(s)); // _run이 롤오버를 처리한다
+
+  Future<EngineResult> addQuest(QuestDraft d) =>
+      _run((s, now) => _engine.addQuest(s, d, now));
+
+  Future<EngineResult> completeQuest(int id) =>
+      _run((s, now) => _engine.completeQuest(s, id, now));
+
+  Future<EngineResult> toggleCheckin(int id) =>
+      _run((s, now) => _engine.toggleCheckin(s, id, now));
+
+  Future<EngineResult> giveUp(int id) =>
+      _run((s, now) => _engine.giveUp(s, id, now));
+
+  Future<EngineResult> deleteQuest(int id) =>
+      _run((s, now) => _engine.deleteQuest(s, id, now));
+
+  Future<EngineResult> placeLevel(String substat, int level) =>
+      _run((s, now) => _engine.placeLevel(s, substat, level, now));
+
+  Future<EngineResult> removeSkill(int id) =>
+      _run((s, now) => _engine.removeSkill(s, id, now));
+
+  /// Claude 업데이트 파일 적용. 형식 오류는 [FormatException].
+  Future<UpdateResult> applyUpdate(UpdateBundle u) =>
+      _run((s, now) => _engine.applyUpdate(s, u, now));
+
+  /// 상태 파일로 전체 복원 (백업 되돌리기).
+  Future<void> restoreState(GameState restored) => _serial(() async {
+        final now = _now();
+        final r = _engine.rollover(restored, now);
         final repo = await _repo;
-        await repo.commit(r.state, events: r.events);
+        await repo.commit(r.state, events: [
+          LogEvent(
+              ts: now,
+              type: LogEvent.system,
+              message: '상태 파일로 복원 (${restored.today})'),
+          ...r.events,
+        ]);
         state = AsyncData(r.state);
-        return r;
       });
 
-  Future<EngineResult> addQuest(QuestDraft draft) =>
-      _run((s, now) => _engine.addQuest(s, draft, now));
-
-  /// 로그 전체 삭제 (레거시 '로그 삭제'). 상태·완료 기록은 그대로.
-  /// 호출 쪽이 `recentEventsProvider`를 invalidate한다 (컨트롤러에서 하면 순환 의존).
+  /// 로그 전체 삭제. 호출 쪽이 `recentEventsProvider`를 invalidate한다.
   Future<void> clearEvents() => _serial(() async {
         await _latest();
-        final repo = await _repo;
-        await repo.clearEvents();
-      });
-
-  /// 오늘 XP를 0으로 (레거시 '오늘 XP 초기화').
-  Future<EngineResult> resetTodayXp() =>
-      _run((s, now) => _engine.resetTodayXp(s, now));
-
-  Future<EngineResult> deleteQuest(int questId) =>
-      _run((s, now) => _engine.deleteQuest(s, questId, now));
-
-  Future<EngineResult> updateProgress(int questId, int progress) =>
-      _run((s, now) => _engine.updateProgress(s, questId, progress, now));
-
-  Future<CompletionResult> completeQuest(int questId, CompletionInput input) =>
-      _run<CompletionResult>(
-        (s, now) => _engine.completeQuest(s, questId, input, now),
-        completion: (r) => r.completion,
-      );
-
-  /// 레거시 JSON 가져오기. 기존 데이터를 모두 대체한다.
-  Future<ImportReport> importLegacy(LegacyBundle bundle) =>
-      _serial(() async {
-        await _latest();
-        final repo = await _repo;
-        final report = await repo.importLegacy(bundle, _now());
-        final loaded = await repo.load();
-        final r = _engine.dailyRollover(loaded, _now());
-        if (r.events.isNotEmpty) await repo.commit(r.state, events: r.events);
-        state = AsyncData(r.state);
-        return report;
+        await (await _repo).clearEvents();
       });
 }

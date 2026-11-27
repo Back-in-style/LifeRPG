@@ -1,429 +1,308 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:liferpg/domain/domain.dart';
 
 import '../../app/providers.dart';
 import '../common/async_view.dart';
 import '../common/labels.dart';
 
-/// 퀘스트 추가 화면. 추가에 성공하면 `true`로 pop한다.
+/// 퀘스트 직접 추가. 보상은 규칙으로 자동 계산된다.
 class AddQuestScreen extends ConsumerStatefulWidget {
-  const AddQuestScreen({super.key});
+  const AddQuestScreen({super.key, this.initialKind});
+
+  final String? initialKind;
 
   @override
   ConsumerState<AddQuestScreen> createState() => _AddQuestScreenState();
 }
 
 class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
+  late String _kind = QuestKind.all.contains(widget.initialKind)
+      ? widget.initialKind!
+      : QuestKind.daily;
+  String _element = 'che';
+  final Set<String> _subs = {};
+  double _scale = 1;
+  String _severity = Severity.normal;
+  String? _promote;
+  int? _skillId;
   final _title = TextEditingController();
   final _desc = TextEditingController();
-  final _xp = TextEditingController(text: '${GameConfig.defaultFlatXp}');
-  final _capTo = TextEditingController();
-  final _recordKey = TextEditingController();
-  final _target = TextEditingController();
-  final Map<String, TextEditingController> _rewards = {
-    for (final k in GameConfig.statKeys) k: TextEditingController(),
-  };
-
-  String _type = 'Daily';
-  String _category = GameConfig.categoryKeys.first;
-  String _difficulty = 'Normal';
-  late String _measure = _defaultMeasure(_category);
-  String _stat = GameConfig.statKeys.first;
-  String _direction = 'higher';
-  String? _deadline;
-  bool _saving = false;
-
-  bool get _isBt => _type == GameConfig.breakthroughType;
-
-  static String _defaultMeasure(String category) =>
-      GameConfig.categoryDefaultMeasure[category] ?? 'flat';
-
-  @override
-  void initState() {
-    super.initState();
-    _capTo.text = _defaultCapTo(_stat);
-  }
-
-  String _defaultCapTo(String stat) {
-    final cap = ref.read(gameControllerProvider).valueOrNull?.profile.stats[stat]?.cap ??
-        GameConfig.defaultStatCap;
-    return formatG(cap + GameConfig.breakthroughMinStep);
-  }
-
-  double _currentCap(String stat) =>
-      ref.read(gameControllerProvider).valueOrNull?.profile.stats[stat]?.cap ??
-      GameConfig.defaultStatCap;
+  final _skillName = TextEditingController();
+  final _statAmount = TextEditingController();
+  final _required = TextEditingController();
+  final _window = TextEditingController();
+  bool _busy = false;
 
   @override
   void dispose() {
-    for (final c in [_title, _desc, _xp, _capTo, _recordKey, _target, ..._rewards.values]) {
+    for (final c in [
+      _title,
+      _desc,
+      _skillName,
+      _statAmount,
+      _required,
+      _window
+    ]) {
       c.dispose();
     }
     super.dispose();
   }
 
-  Future<void> _pickDeadline() async {
-    final now = ref.read(clockProvider)();
-    final init = tryParseDateKey(_deadline);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: init == null
-          ? now
-          : DateTime(init.year, init.month, init.day),
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 10),
-    );
-    if (picked != null && mounted) setState(() => _deadline = dateKey(picked));
-  }
+  List<String> get _elementSubs => SgcyConfig.elementByKey[_element]!.substats;
 
-  /// SPEC_v1 §5.3 검증 문구. 통과하면 null 대신 draft.
-  (QuestDraft?, String?) _buildDraft() {
-    final title = _title.text.trim();
-    if (title.isEmpty) return (null, '퀘스트 제목을 입력해줘');
-    final recordKey = _recordKey.text.trim().isEmpty ? null : _recordKey.text.trim();
-    double? target;
-    if (_target.text.trim().isNotEmpty) {
-      target = double.tryParse(_target.text.trim());
-      if (target == null) return (null, '목표값은 숫자로 입력해줘');
-    }
-    if (_isBt) {
-      final to = double.tryParse(_capTo.text.trim());
-      if (to == null || to <= 0) return (null, '돌파 상한값을 올바르게 입력해줘');
-      final cur = _currentCap(_stat);
-      if (to <= cur) {
-        return (null, '$_stat 상한값은 현재 상한(${formatG(cur)})보다 높아야 해');
-      }
-      if (recordKey == null) return (null, '돌파는 기록 키가 필요해 (예: 스쿼트 1RM(kg))');
-      return (
-        QuestDraft(
-          title: title,
-          desc: _desc.text,
-          type: _type,
-          category: GameConfig.breakthroughType,
-          measureKind: 'flat',
-          baseXp: 0,
-          unlockStat: _stat,
-          unlockTo: to,
-          deadline: _deadline,
-          recordKey: recordKey,
-          recordDirection: _direction,
-          target: target,
-        ),
-        null
-      );
-    }
-    var xp = 0;
-    if (_measure == 'flat') {
-      final v = int.tryParse(_xp.text.trim());
-      if (v == null || v <= 0) return (null, 'XP는 1 이상의 정수로 입력해줘');
-      xp = v;
-    }
-    final rewards = <String, double>{};
-    for (final e in _rewards.entries) {
-      final t = e.value.text.trim();
-      if (t.isEmpty) continue;
-      final v = double.tryParse(t);
-      if (v == null) return (null, '${e.key} 보상은 숫자로 입력해줘');
-      if (v != 0) rewards[e.key] = v;
-    }
-    return (
-      QuestDraft(
-        title: title,
-        desc: _desc.text,
-        type: _type,
-        category: _category,
-        difficulty: _difficulty,
-        measureKind: _measure,
-        baseXp: xp,
-        rewards: rewards,
-        deadline: _deadline,
-        recordKey: recordKey,
-        recordDirection: recordKey == null ? null : _direction,
-        target: target,
-      ),
-      null
+  QuestDraft _draft() {
+    final weights = {for (final k in _subs) k: 1.0};
+    final amount = double.tryParse(_statAmount.text.trim()) ?? 0;
+    final special = _kind == QuestKind.special;
+    return QuestDraft(
+      kind: _kind,
+      title: _title.text,
+      desc: _desc.text,
+      element: _element,
+      weights: weights,
+      scale: _scale,
+      statRewards: special && amount > 0
+          ? distribute(amount, weights, _element)
+          : const {},
+      promote: special ? _promote : null,
+      grantSkill: special && _skillName.text.trim().isNotEmpty
+          ? SkillGrant(name: _skillName.text.trim(), element: _element)
+          : null,
+      skillId: _kind == QuestKind.warning ? _skillId : null,
+      severity: _kind == QuestKind.warning ? _severity : null,
+      requiredDays: int.tryParse(_required.text.trim()),
+      windowDays: int.tryParse(_window.text.trim()),
     );
   }
 
-  Future<void> _submit() async {
-    if (_saving) return;
-    final (draft, err) = _buildDraft();
-    if (draft == null) {
-      showSnack(context, err ?? '입력값을 다시 확인해줘');
-      return;
-    }
-    setState(() => _saving = true);
-    final EngineResult r;
-    try {
-      r = await ref.read(gameControllerProvider.notifier).addQuest(draft);
-    } catch (e) {
-      if (mounted) showSnack(context, '퀘스트 저장 실패: $e');
-      return;
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+  Future<void> _save() async {
+    setState(() => _busy = true);
+    final r =
+        await ref.read(gameControllerProvider.notifier).addQuest(_draft());
     if (!mounted) return;
-    if (!r.ok) {
-      showSnack(context, Labels.error(r.error!));
-      return;
+    setState(() => _busy = false);
+    if (r.ok) {
+      context.pop();
+    } else {
+      showSnack(context, r.error!);
     }
-    Navigator.pop(context, true);
   }
-
-  Widget _dropdown({
-    required Key key,
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String> onChanged,
-    String Function(String)? itemLabel,
-  }) =>
-      DropdownButtonFormField<String>(
-        key: key,
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label),
-        items: [
-          for (final i in items)
-            DropdownMenuItem(value: i, child: Text(itemLabel?.call(i) ?? i)),
-        ],
-        onChanged: (v) {
-          if (v != null) onChanged(v);
-        },
-      );
 
   @override
   Widget build(BuildContext context) {
-    const gap = SizedBox(height: 12);
+    final game = ref.watch(gameControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('퀘스트 추가'),
-        actions: [
-          TextButton(
-            key: const Key('add_submit'),
-            onPressed: _saving ? null : _submit,
-            child: const Text('추가'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          TextField(
-            key: const Key('add_title'),
-            controller: _title,
-            decoration: const InputDecoration(labelText: '퀘스트 제목 *'),
-          ),
-          gap,
-          SegmentedButton<String>(
-            segments: [
-              for (final t in GameConfig.questTypes)
-                ButtonSegment(value: t, label: Text(t)),
-            ],
-            selected: {_type},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => setState(() => _type = s.first),
-          ),
-          gap,
-          if (_isBt) ..._breakthroughFields(gap) else ..._normalFields(gap),
-          gap,
-          _recordFields(),
-          gap,
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.event),
-            title: Text(_deadline == null ? '마감일 (선택)' : '마감일: $_deadline'),
-            trailing: _deadline == null
-                ? null
-                : IconButton(
-                    tooltip: '마감일 지우기',
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => setState(() => _deadline = null),
+      appBar: AppBar(title: const Text('퀘스트 추가')),
+      body: AsyncView<GameState>(
+        value: game,
+        builder: (context, s) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            SegmentedButton<String>(
+              segments: [
+                for (final k in [
+                  QuestKind.daily,
+                  QuestKind.weekly,
+                  QuestKind.special,
+                  QuestKind.warning
+                ])
+                  ButtonSegment(value: k, label: Text(QuestKind.labels[k]!)),
+              ],
+              selected: {_kind},
+              onSelectionChanged: (v) => setState(() => _kind = v.first),
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<String>(
+              segments: [
+                for (final e in SgcyConfig.elements)
+                  ButtonSegment(value: e.key, label: Text(e.label)),
+              ],
+              selected: {_element},
+              onSelectionChanged: (v) => setState(() {
+                _element = v.first;
+                _subs.clear();
+                _promote = null;
+              }),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('quest_title'),
+              controller: _title,
+              decoration: const InputDecoration(
+                  labelText: '제목', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _desc,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                  labelText: '설명 (선택)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            Text('관련 세부스탯 (고르지 않으면 균등 분배)',
+                style: Theme.of(context).textTheme.labelLarge),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final k in _elementSubs)
+                  FilterChip(
+                    label: Text(Labels.substatLabel(k)),
+                    selected: _subs.contains(k),
+                    onSelected: (v) =>
+                        setState(() => v ? _subs.add(k) : _subs.remove(k)),
                   ),
-            onTap: _pickDeadline,
-          ),
-          TextField(
-            controller: _desc,
-            minLines: 2,
-            maxLines: 5,
-            decoration: const InputDecoration(labelText: '설명 (세부 조건/루틴)'),
-          ),
-        ],
+              ],
+            ),
+            if (_kind != QuestKind.special) ...[
+              const SizedBox(height: 8),
+              Text('난이도 보정 ×${_scale.toStringAsFixed(1)}',
+                  style: Theme.of(context).textTheme.labelLarge),
+              Slider(
+                value: _scale,
+                min: SgcyConfig.minScale,
+                max: SgcyConfig.maxScale,
+                divisions: 8,
+                label: _scale.toStringAsFixed(1),
+                onChanged: (v) => setState(() => _scale = v),
+              ),
+            ],
+            ..._kindFields(s),
+            const SizedBox(height: 12),
+            _Preview(state: s, draft: _draft()),
+            const SizedBox(height: 16),
+            FilledButton(
+              key: const Key('save_quest'),
+              onPressed: _busy ? null : _save,
+              child: const Text('추가'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  List<Widget> _normalFields(Widget gap) => [
-        Row(
+  List<Widget> _kindFields(GameState s) {
+    Widget days(String hintReq, String hintWin) => Row(
           children: [
-            Expanded(
-              child: _dropdown(
-                key: const Key('add_category'),
-                label: '카테고리',
-                value: _category,
-                items: GameConfig.categoryKeys,
-                onChanged: (v) => setState(() {
-                  _category = v;
-                  _measure = _defaultMeasure(v);
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _dropdown(
-                key: const Key('add_difficulty'),
-                label: '난이도',
-                value: _difficulty,
-                items: GameConfig.difficultyMultiplier.keys.toList(),
-                onChanged: (v) => setState(() => _difficulty = v),
-              ),
-            ),
-          ],
-        ),
-        gap,
-        _dropdown(
-          key: ValueKey('add_measure_$_category'),
-          label: '측정치 종류',
-          value: _measure,
-          items: GameConfig.measureKinds,
-          itemLabel: Labels.measureKind,
-          onChanged: (v) => setState(() => _measure = v),
-        ),
-        if (_measure == 'flat') ...[
-          gap,
-          TextField(
-            key: const Key('add_xp'),
-            controller: _xp,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-                labelText: 'XP (숫자)', helperText: '난이도 배율이 적용돼요'),
-          ),
-        ] else
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              '완료할 때 ${(GameConfig.measureFields[_measure] ?? []).map(Labels.measureField).join(' · ')}'
-              '을(를) 입력하면 XP가 계산돼요 (난이도 배율 미적용).',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        gap,
-        ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          title: const Text('명시 스탯 보상 (선택)'),
-          subtitle: const Text('비우면 카테고리에 따라 자동 분배'),
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final k in GameConfig.statKeys)
-                  SizedBox(
-                    width: 100,
-                    child: TextField(
-                      controller: _rewards[k],
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true, signed: true),
-                      decoration: InputDecoration(
-                          labelText: k, isDense: true, hintText: '0'),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ];
-
-  List<Widget> _breakthroughFields(Widget gap) => [
-        Row(
-          children: [
-            Expanded(
-              child: _dropdown(
-                key: const Key('add_bt_stat'),
-                label: '돌파 스탯',
-                value: _stat,
-                items: GameConfig.statKeys,
-                onChanged: (v) => setState(() {
-                  _stat = v;
-                  _capTo.text = _defaultCapTo(v);
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: TextField(
-                key: const Key('add_bt_cap'),
-                controller: _capTo,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: '목표 상한',
-                  helperText: '현재 상한 ${formatG(_currentCap(_stat))}',
-                ),
+                controller: _required,
+                keyboardType: TextInputType.number,
+                decoration:
+                    InputDecoration(labelText: '지킬 일수', hintText: hintReq),
+                onChanged: (_) => setState(() {}),
               ),
             ),
-          ],
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            '완료할 때 기록값을 입력해 개인기록(PR)을 세우면 상한이 올라가요.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-      ];
-
-  Widget _recordFields() {
-    final fields = Column(
-      children: [
-        TextField(
-          key: const Key('add_record_key'),
-          controller: _recordKey,
-          decoration: InputDecoration(
-            labelText: _isBt ? '기록 키 *' : '기록 키',
-            hintText: '예: 스쿼트 1RM(kg)',
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
+            const SizedBox(width: 8),
             Expanded(
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'higher', label: Text('높을수록')),
-                  ButtonSegment(value: 'lower', label: Text('낮을수록')),
-                ],
-                selected: {_direction},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _direction = s.first),
+              child: TextField(
+                controller: _window,
+                keyboardType: TextInputType.number,
+                decoration:
+                    InputDecoration(labelText: '기간(일)', hintText: hintWin),
+                onChanged: (_) => setState(() {}),
               ),
             ),
-            if (_isBt) ...[
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 110,
-                child: TextField(
-                  controller: _target,
-                  keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true),
-                  decoration: const InputDecoration(
-                      labelText: '목표값', hintText: '선택', isDense: true),
-                ),
-              ),
-            ],
           ],
-        ),
-      ],
+        );
+    switch (_kind) {
+      case QuestKind.special:
+        return [
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            initialValue: _promote,
+            decoration: const InputDecoration(labelText: '승급 보상 (선택)'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('없음')),
+              for (final k in _elementSubs)
+                DropdownMenuItem(
+                  value: k,
+                  child: Text('${Labels.substatLabel(k)} '
+                      '${s.substat(k).level} → ${s.substat(k).level + 1}레벨'),
+                ),
+            ],
+            onChanged: (v) => setState(() => _promote = v),
+          ),
+          TextField(
+            controller: _statAmount,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: '스탯 보상 총량 (선택)'),
+            onChanged: (_) => setState(() {}),
+          ),
+          TextField(
+            controller: _skillName,
+            decoration:
+                const InputDecoration(labelText: '스킬 보상 이름 (선택, 예: 퀵 슬립)'),
+            onChanged: (_) => setState(() {}),
+          ),
+          days('예: 24', '예: 30 (습관형일 때)'),
+        ];
+      case QuestKind.warning:
+        return [
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: [
+              for (final k in Severity.all)
+                ButtonSegment(value: k, label: Text(Severity.labels[k]!)),
+            ],
+            selected: {_severity},
+            onSelectionChanged: (v) => setState(() => _severity = v.first),
+          ),
+          DropdownButtonFormField<int?>(
+            initialValue: _skillId,
+            decoration: const InputDecoration(labelText: '연결 스킬 (선택)'),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('없음')),
+              for (final k in s.skills)
+                DropdownMenuItem(value: k.id, child: Text(k.name)),
+            ],
+            onChanged: (v) => setState(() => _skillId = v),
+          ),
+          days('${SgcyConfig.warningRequiredDays}',
+              '${SgcyConfig.warningWindowDays}'),
+        ];
+      default:
+        return const [];
+    }
+  }
+}
+
+/// 엔진으로 미리 계산한 보상.
+class _Preview extends StatelessWidget {
+  const _Preview({required this.state, required this.draft});
+  final GameState state;
+  final QuestDraft draft;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = QuestDraft(
+      kind: draft.kind,
+      title: draft.title.trim().isEmpty ? '미리보기' : draft.title,
+      element: draft.element,
+      weights: draft.weights,
+      scale: draft.scale,
+      statRewards: draft.statRewards,
+      promote: draft.promote,
+      grantSkill: draft.grantSkill,
+      severity: draft.severity,
+      requiredDays: draft.requiredDays,
+      windowDays: draft.windowDays,
     );
-    if (_isBt) return fields;
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      title: const Text('개인기록 연결 (선택)'),
-      subtitle: const Text('완료할 때 기록값을 남겨 PR을 추적'),
-      childrenPadding: const EdgeInsets.only(bottom: 8),
-      children: [fields],
+    final r = const GameEngine().addQuest(state, d, DateTime.now());
+    final text = r.ok
+        ? questLine(r.state.quests.last).replaceFirst(RegExp(r'^#\d+ '), '')
+        : r.error!;
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          '${r.ok ? '보상: ' : '⚠ '}$text',
+          style: TextStyle(color: r.ok ? null : Colors.orange),
+        ),
+      ),
     );
   }
 }

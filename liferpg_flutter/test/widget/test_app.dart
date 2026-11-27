@@ -4,9 +4,10 @@ import 'package:liferpg/app/app.dart';
 import 'package:liferpg/app/providers.dart';
 import 'package:liferpg/app/reminder.dart';
 import 'package:liferpg/data/in_memory_game_repository.dart';
+import 'package:liferpg/domain/domain.dart';
 
 /// 위젯 테스트 고정 시각.
-final DateTime fixedNow = DateTime(2026, 3, 2, 9);
+final DateTime fixedNow = DateTime(2026, 11, 26, 9);
 
 /// 알림 플러그인을 쓰지 않는 가짜 리마인더.
 class FakeReminderService implements ReminderService {
@@ -22,16 +23,14 @@ class FakeReminderService implements ReminderService {
   }
 }
 
-/// InMemory 저장소 + 고정 시각으로 앱을 띄운다.
-Widget testApp(InMemoryGameRepository repo, {ReminderService? reminder}) =>
-    ProviderScope(
+Widget testApp(InMemoryGameRepository repo) => ProviderScope(
       overrides: [
         clockProvider.overrideWithValue(() => fixedNow),
         gameRepositoryProvider.overrideWith((ref) async => repo),
-        reminderServiceProvider
-            .overrideWithValue(reminder ?? FakeReminderService()),
+        reminderServiceProvider.overrideWithValue(FakeReminderService()),
       ],
       child: const LifeRpgApp(),
     );
 
-InMemoryGameRepository newRepo() => InMemoryGameRepository(clock: () => fixedNow);
+InMemoryGameRepository newRepo([GameState? initial]) =>
+    InMemoryGameRepository(initial: initial, clock: () => fixedNow);

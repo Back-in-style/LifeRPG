@@ -1,247 +1,221 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:liferpg/domain/domain.dart';
 
 import '../../app/providers.dart';
 import '../common/async_view.dart';
 import '../common/labels.dart';
-import 'add_quest_screen.dart';
-import 'completion_flow.dart';
-import 'quest_detail_sheet.dart';
-import 'quest_format.dart';
 
-/// 필터 (키, 표시 이름). SPEC_v1 §5.3의 All/Daily/Side/Main/돌파 + 진행중/완료.
-const List<(String, String)> questFilters = [
-  ('All', '전체'),
-  ('Daily', 'Daily'),
-  ('Main', 'Main'),
-  ('Side', 'Side'),
-  ('돌파', '돌파'),
-  ('active', '진행중'),
-  ('done', '완료'),
-];
-
-/// 퀘스트 — 필터 칩, Daily 그룹, 추가/상세/완료(측정치 입력).
-class QuestsScreen extends ConsumerStatefulWidget {
+/// 퀘스트 — 경고 / 특별 / 주간 / 일일 (진행 중) + 최근 종료.
+class QuestsScreen extends ConsumerWidget {
   const QuestsScreen({super.key});
 
   @override
-  ConsumerState<QuestsScreen> createState() => _QuestsScreenState();
-}
-
-class _QuestsScreenState extends ConsumerState<QuestsScreen> {
-  String _filter = 'All';
-
-  bool _match(Quest q) => switch (_filter) {
-        'All' => true,
-        'active' => !q.isDone,
-        'done' => q.isDone,
-        final t => q.type == t,
-      };
-
-  Future<void> _openAdd() async {
-    final added = await Navigator.of(context).push<bool>(MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => const AddQuestScreen(),
-    ));
-    if (added == true && mounted) showSnack(context, '퀘스트가 추가되었습니다!');
-  }
-
-  Future<void> _openDetail(Quest q, String today) async {
-    // 스낵바가 시트의 버튼을 가리지 않게 닫는다.
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    final action = await showModalBottomSheet<QuestDetailAction>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => QuestDetailSheet(quest: q, today: today),
-    );
-    if (!mounted || action == null) return;
-    // 슬라이더로 바뀐 진행률 등을 반영한 최신 퀘스트.
-    final latest =
-        ref.read(gameControllerProvider).valueOrNull?.questById(q.id) ?? q;
-    switch (action) {
-      case QuestDetailAction.complete:
-        await runCompleteFlow(context, ref, latest);
-      case QuestDetailAction.delete:
-        await _confirmDelete(latest);
-    }
-  }
-
-  Future<void> _confirmDelete(Quest q) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('퀘스트 삭제'),
-        content: Text("'${q.title}' 퀘스트를 삭제할까요?"),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소')),
-          FilledButton(
-              key: const Key('delete_confirm'),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('삭제')),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      final r =
-          await ref.read(gameControllerProvider.notifier).deleteQuest(q.id);
-      if (!mounted) return;
-      showSnack(context, r.ok ? '퀘스트가 삭제되었습니다.' : Labels.error(r.error!));
-    } catch (e) {
-      if (mounted) showSnack(context, '삭제 실패: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final game = ref.watch(gameControllerProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('📋 퀘스트'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                for (final (key, label) in questFilters)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      key: Key('filter_$key'),
-                      label: Text(label),
-                      selected: _filter == key,
-                      onSelected: (_) => setState(() => _filter = key),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
+      appBar: AppBar(title: const Text('퀘스트')),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('add_quest'),
+        onPressed: () => context.push('/add-quest'),
+        icon: const Icon(Icons.add),
+        label: const Text('퀘스트 추가'),
       ),
       body: AsyncView<GameState>(
         value: game,
-        builder: (context, s) => _buildList(context, s),
+        builder: (context, s) {
+          final active = s.activeQuests;
+          final closed = s.quests
+              .where((q) => !q.isActive)
+              .toList()
+              .reversed
+              .take(30)
+              .toList();
+          final t = Theme.of(context).textTheme;
+          final dailyLine = SgcyConfig.elements
+              .map((e) =>
+                  '${e.label} ${GameEngine.dailyCount(s.quests, e.key, s.today)}/${SgcyConfig.dailyCapPerElement}')
+              .join('  ');
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+            children: [
+              Text('오늘 일일 퀘스트  $dailyLine', style: t.bodySmall),
+              if (active.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(
+                    child: Text(
+                        '진행 중인 퀘스트가 없어요.\n'
+                        '연동 탭에서 Claude 업데이트를 붙여 넣거나 직접 추가하세요.',
+                        textAlign: TextAlign.center),
+                  ),
+                ),
+              for (final kind in QuestKind.all)
+                if (active.any((q) => q.kind == kind)) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
+                    child: Row(children: [
+                      Icon(Labels.kindIcon(kind), size: 18),
+                      const SizedBox(width: 6),
+                      Text('${QuestKind.labels[kind]} 퀘스트',
+                          style: t.titleMedium),
+                    ]),
+                  ),
+                  for (final q in active.where((q) => q.kind == kind))
+                    QuestCard(quest: q, today: s.today),
+                ],
+              if (closed.isNotEmpty)
+                ExpansionTile(
+                  title: Text('최근 종료 (${closed.length})'),
+                  children: [
+                    for (final q in closed)
+                      ListTile(
+                        dense: true,
+                        leading: Icon(Labels.kindIcon(q.kind)),
+                        title: Text(q.title),
+                        subtitle: Text(
+                            '${q.closedDate ?? ''} · ${q.kindLabel} · ${q.status.label}'),
+                        trailing: IconButton(
+                          tooltip: '기록 삭제',
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => ref
+                              .read(gameControllerProvider.notifier)
+                              .deleteQuest(q.id),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          );
+        },
       ),
-      floatingActionButton: FloatingActionButton(
-        key: const Key('add_quest_fab'),
-        tooltip: '퀘스트 추가',
-        onPressed: game.hasValue ? _openAdd : null,
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildList(BuildContext context, GameState s) {
-    final today = s.profile.todayDate;
-    final filtered = s.quests.where(_match).toList()
-      ..sort((a, b) {
-        final d = (a.isDone ? 1 : 0).compareTo(b.isDone ? 1 : 0);
-        return d != 0 ? d : a.id.compareTo(b.id);
-      });
-    if (filtered.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('퀘스트가 없습니다. + 버튼으로 추가하세요.',
-              textAlign: TextAlign.center),
-        ),
-      );
-    }
-    final children = <Widget>[];
-    Widget tile(Quest q) =>
-        _QuestTile(quest: q, today: today, onTap: () => _openDetail(q, today));
-
-    final grouped = _filter == 'All' || _filter == 'Daily';
-    if (grouped) {
-      final daily = filtered.where((q) => q.type == 'Daily').toList();
-      final others = filtered.where((q) => q.type != 'Daily').toList();
-      for (final (key, label) in GameConfig.dailyGroups) {
-        final g = daily.where((q) => dailyGroupOf(q) == key).toList();
-        if (g.isEmpty) continue;
-        final active = g.where((q) => !q.isDone).length;
-        children.add(_GroupHeader('$label  ($active개)'));
-        children.addAll(g.map(tile));
-      }
-      if (others.isNotEmpty) {
-        children.add(const _GroupHeader('── Side / Main / 돌파 ──', accent: true));
-        children.addAll(others.map(tile));
-      }
-    } else {
-      children.addAll(filtered.map(tile));
-    }
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
-      children: children,
     );
   }
 }
 
-class _GroupHeader extends StatelessWidget {
-  const _GroupHeader(this.text, {this.accent = false});
-  final String text;
-  final bool accent;
+class QuestCard extends ConsumerWidget {
+  const QuestCard({super.key, required this.quest, required this.today});
 
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      color: (accent ? scheme.secondary : scheme.primary).withValues(alpha: 0.12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Text(text,
-          style: const TextStyle(fontWeight: FontWeight.bold)),
-    );
-  }
-}
-
-class _QuestTile extends StatelessWidget {
-  const _QuestTile(
-      {required this.quest, required this.today, required this.onTap});
   final Quest quest;
   final String today;
-  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final q = quest;
-    final theme = Theme.of(context);
-    final dday = ddayLabel(q.deadline, today);
-    final overdue = dday.startsWith('D+');
-    final sub = [
-      questRewardText(q),
-      if (!q.isBreakthrough) '난이도: ${q.difficulty}',
-      '카테고리: ${q.category}',
-      if ((q.type == 'Side' || q.type == 'Main') && q.progress > 0 && !q.isDone)
-        '진행률 ${q.progress}%',
-    ].join('  ');
-    return ListTile(
-      onTap: onTap,
-      leading: Icon(
-        q.isDone ? Icons.check_box : Icons.check_box_outline_blank,
-        color: q.isDone ? theme.colorScheme.secondary : null,
+    final t = Theme.of(context).textTheme;
+    final color = Labels.elementColor(q.element);
+    final dl = Labels.deadlineText(q, today);
+    final checkedToday = q.checkins.contains(today);
+    final ctrl = ref.read(gameControllerProvider.notifier);
+
+    Future<void> act(Future<EngineResult> Function() f, String done) async {
+      final r = await f();
+      if (!context.mounted) return;
+      showSnack(context, r.error ?? done);
+    }
+
+    final details = <String>[
+      if (q.rewards.isNotEmpty) Labels.rewardsText(q),
+      if (q.promote != null)
+        '${Labels.substatLabel(q.promote!)} 승급 → Lv${q.level}',
+      if (q.grantSkill != null) '스킬 「${q.grantSkill!.name}」',
+      if (q.severity != null) '심각도 ${Severity.labels[q.severity]}',
+    ];
+
+    return Card(
+      key: Key('quest_${q.id}'),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: q.isWarning
+            ? const BorderSide(color: Colors.orange)
+            : BorderSide(color: color.withValues(alpha: 0.4)),
       ),
-      title: Text(
-        '[${q.type}] ${q.title}',
-        style: q.isDone
-            ? TextStyle(
-                decoration: TextDecoration.lineThrough,
-                color: theme.colorScheme.onSurfaceVariant)
-            : null,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 6, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 13,
+                  backgroundColor: color.withValues(alpha: 0.25),
+                  child: Text(Labels.elementLabel(q.element),
+                      style: TextStyle(color: color, fontSize: 13)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(q.title, style: t.titleSmall)),
+                Text('Lv${q.level}', style: t.labelSmall),
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == 'giveup') act(() => ctrl.giveUp(q.id), '포기했어요');
+                    if (v == 'delete') {
+                      act(() => ctrl.deleteQuest(q.id), '삭제했어요');
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    if (!q.isWarning)
+                      const PopupMenuItem(value: 'giveup', child: Text('포기')),
+                    if (!q.isWarning)
+                      const PopupMenuItem(value: 'delete', child: Text('삭제')),
+                    if (q.isWarning)
+                      const PopupMenuItem(
+                          enabled: false, child: Text('경고 퀘스트는 체크인으로만 해제')),
+                  ],
+                ),
+              ],
+            ),
+            if (q.desc.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, right: 8),
+                child: Text(q.desc, style: t.bodySmall),
+              ),
+            if (details.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, right: 8),
+                child: Text(details.join(' · '),
+                    style: t.bodySmall?.copyWith(
+                        color: q.isWarning ? Colors.orange : Colors.amber)),
+              ),
+            if (q.hasCheckins) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: LinearProgressIndicator(
+                    value: q.checkins.length / q.requiredDays!, minHeight: 5),
+              ),
+              Text(
+                  '체크인 ${q.checkins.length}/${q.requiredDays}일 (${q.windowDays}일 중)',
+                  style: t.labelSmall),
+            ],
+            Row(
+              children: [
+                if (dl != null) Text(dl, style: t.labelSmall),
+                const Spacer(),
+                if (q.hasCheckins)
+                  TextButton.icon(
+                    key: Key('checkin_${q.id}'),
+                    onPressed: () => act(() => ctrl.toggleCheckin(q.id),
+                        checkedToday ? '체크인 취소' : '오늘 체크인!'),
+                    icon: Icon(checkedToday
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank),
+                    label: const Text('오늘 지킴'),
+                  ),
+                if (!q.isWarning)
+                  FilledButton.tonal(
+                    key: Key('complete_${q.id}'),
+                    onPressed: () => act(() => ctrl.completeQuest(q.id),
+                        '완료! ${details.join(' · ')}'),
+                    child: const Text('완료'),
+                  ),
+                const SizedBox(width: 6),
+              ],
+            ),
+          ],
+        ),
       ),
-      subtitle: Text(sub),
-      trailing: dday.isEmpty
-          ? null
-          : Text(dday,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: overdue ? theme.colorScheme.error : theme.colorScheme.secondary,
-              )),
     );
   }
 }

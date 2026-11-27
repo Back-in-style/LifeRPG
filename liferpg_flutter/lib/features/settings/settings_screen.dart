@@ -1,11 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/reminder.dart';
 import '../common/async_view.dart';
 
-/// 설정 — Daily 리마인더, 레거시 데이터 가져오기.
+/// 설정 — 매일 대화 리마인더.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -64,8 +63,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SwitchListTile(
                   key: const Key('reminder_switch'),
                   secondary: const Icon(Icons.notifications_active),
-                  title: const Text('Daily 리마인더'),
-                  subtitle: const Text('매일 정해진 시각에 Daily 퀘스트를 알려 줘요'),
+                  title: const Text('매일 대화 리마인더'),
+                  subtitle: const Text('매일 정해진 시각에 Claude와 하루 대화를 하라고 알려 줘요'),
                   value: s.enabled,
                   onChanged:
                       _busy ? null : (v) => _apply(s.copyWith(enabled: v)),
@@ -81,16 +80,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
-          const Divider(),
-          const _Header('데이터'),
-          ListTile(
-            key: const Key('open_import'),
-            leading: const Icon(Icons.file_download),
-            title: const Text('레거시 데이터 가져오기'),
-            subtitle: const Text('기존 앱(KivyMD)의 JSON 4종을 붙여 넣어 가져와요'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/import'),
-          ),
         ],
       ),
     );
@@ -105,7 +94,9 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
         child: Text(text,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.secondary)),
+            style: Theme.of(context)
+                .textTheme
+                .labelLarge
+                ?.copyWith(color: Theme.of(context).colorScheme.secondary)),
       );
 }

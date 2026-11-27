@@ -1,7 +1,7 @@
 import '../format.dart';
 import 'json_helpers.dart';
 
-/// 로그 이벤트 (SPEC_v1 §2.4 형식).
+/// 로그 이벤트.
 class LogEvent {
   const LogEvent({
     required this.ts,
@@ -11,20 +11,18 @@ class LogEvent {
   });
 
   static const String system = 'system';
-  static const String xp = 'xp';
   static const String quest = 'quest';
-  static const String breakthrough = 'breakthrough';
   static const String stat = 'stat';
-  static const String achievement = 'achievement';
-  static const String pr = 'pr';
-  static const String import = 'import';
+  static const String level = 'level';
+  static const String skill = 'skill';
+  static const String warning = 'warning';
+  static const String update = 'update';
 
   final DateTime ts;
 
-  /// `'system'|'xp'|'quest'|'breakthrough'|'stat'|'achievement'|'pr'|'import'`.
+  /// `'system'|'quest'|'stat'|'level'|'skill'|'warning'|'update'`.
   final String type;
 
-  /// 레거시 메시지 형식 유지.
   final String message;
 
   /// JSON으로 직렬화 가능한 값만 (num/String/bool/null/List/Map).

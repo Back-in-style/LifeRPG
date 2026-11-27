@@ -32,6 +32,7 @@ Codespace에는 에뮬레이터가 없다. APK는 빌드 후 다운로드해서 
 ## 웹 미리보기 (이 환경에서 테스트)
 - `tool/serve_web.sh [포트]` — 웹 릴리스 빌드 후 `build/web`을 **포트 8080**으로 서빙. 실행하면 접속 주소를 출력한다. 코드를 바꾸면 다시 실행하고 브라우저를 새로고침한다.
 - Codespace 주소: `https://<CODESPACE_NAME>-8080.app.github.dev` (VS Code **포트** 탭에도 "LifeRPG 웹 미리보기"로 보임. `.devcontainer/devcontainer.json`의 `forwardPorts`로 자동 전달)
+- APK 다운로드: `flutter build apk --debug` 후 `tool/serve_web.sh`를 실행하면 `<주소>/liferpg-debug.apk`로 받을 수 있다 (포트는 private → 폰 브라우저에서 GitHub 로그인 필요).
 - Claude는 백그라운드로 실행해 둔다. 핫 리로드가 필요하면 대신 `flutter run -d web-server --web-port 8080 --web-hostname 0.0.0.0`
 - 웹은 메모리 저장소·알림 없음(`open_repository_web.dart`, `reminder_service_web.dart`), 새로고침하면 데이터 초기화.
 - 메인화면 궤도는 OS "애니메이션 줄이기"가 켜져 있으면 멈춘다. 위젯 테스트는 그 설정을 켜 두고 돈다(`test/widget/app_test.dart` setUp).

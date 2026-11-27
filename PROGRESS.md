@@ -12,6 +12,7 @@
 - 디자인 4안(묵향·한지·청자·기본)을 **설정 > 디자인에서 골라 쓰는 기능으로 유지** — 커밋함. 선택은 아직 저장 안 됨(재시작하면 묵향)
 - Claude 연동: 별도 claude.ai 프로젝트가 담당. 키트 `claude/` (AGENT_GUIDE·STATE_FORMAT·UPDATE_FORMAT·LEVEL_CRITERIA·PROJECT_INSTRUCTIONS)
 - 웹 미리보기: `liferpg_flutter/tool/serve_web.sh` → https://probable-couscous-6vwp6p4gvrvxf5744-8080.app.github.dev (포트 8080)
+- 최신 debug APK: 8080 미리보기 주소 + `/liferpg-debug.apk`
 - 사용자 확인이 필요한 것: 실기기 테스트, 세부스탯 절대 기준(`claude/LEVEL_CRITERIA.md`) 확정
 
 ## 2. 진행 중
@@ -38,6 +39,7 @@
 - Codespace에 에뮬레이터 없음 → 실기기 확인은 사용자가 해야 함
 
 ## 6. 세션 로그 (최신이 위, 최근 10개만 유지 — 오래된 건 한 줄로 합치거나 삭제)
+- 2026-11-27 · 푸시(`b9d3f5a`), debug APK 빌드 → https://probable-couscous-6vwp6p4gvrvxf5744-8080.app.github.dev/liferpg-debug.apk (serve_web.sh가 APK도 같이 서빙)
 - 2026-11-27 · 퀘스트 카드의 분야 원을 한자(心·氣·體·緣)로, 사용자가 고친 `LEVEL_CRITERIA.md` 커밋
 - 2026-11-27 · 디자인 여러 안을 골라 쓰게 두기로 결정, 메인화면·스킬 탭·요소 상세·디자인·키트 문서 커밋
 - 2026-11-27 · 대화는 별도 Claude(claude.ai 프로젝트)가 맡기로 → 키트에 `claude/AGENT_GUIDE.md`(흐름·원칙·체크리스트), `claude/STATE_FORMAT.md`(입력 형식) 추가, 문서-코드 일치 테스트 `state_format_doc_test.dart`

@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 export PATH="$PATH:$HOME/flutter/bin"
 flutter build web --release --no-wasm-dry-run >/dev/null
 pkill -f "http.server $PORT" 2>/dev/null || true
+# 빌드해 둔 APK가 있으면 같은 주소로 내려받을 수 있게 둔다: <주소>/liferpg-debug.apk
+APK=build/app/outputs/flutter-apk/app-debug.apk
+[ -f "$APK" ] && cp "$APK" build/web/liferpg-debug.apk
 if [ -n "$CODESPACE_NAME" ]; then
   echo "미리보기: https://$CODESPACE_NAME-$PORT.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"
 else
